@@ -172,3 +172,11 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Containerlab files
+*.clab/
+*.clab.yml.bak
+ansible-inventory.yml
+nornir.log
+*.clab.drawio
+glados
