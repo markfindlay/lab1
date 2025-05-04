@@ -29,14 +29,6 @@ def save_config_to_file(hostname: str, config: str, backup_dir: str = "backup/")
     with open(os.path.join(backup_dir, filename), "w") as f:
         f.write(config)
 
-def run(nr: Nornir, args: argparse.Namespace):
-    for host in nr.inventory.hosts:
-        nr.inventory.hosts[host].platform = "juniper_junos"
-        nr.inventory.hosts[host].connection_options["scrapli"] = ConnectionOptions(extras={'auth_strict_key': False})
-        nr.inventory.hosts[host].connection_options["scrapli_netconf"] = ConnectionOptions(extras={'auth_strict_key': False})
-    result = nr.run(task=send_command, command=args.command)
-    print_result(result)
-
 def backup_task(task: Task) -> None:
     result = task.run(
         name="Backup config",
@@ -52,13 +44,12 @@ def backup_task(task: Task) -> None:
     save_config_to_file(task.host, config)
 
 def restore_task(task: Task) -> None:
-    result = task.run(
+    task.run(
         name="Restore config",
         task=napalm_configure,
         filename=f"backup/{task.host}.cfg",
         replace=True,  
     )
-    print_result(result)
 
 def backup(nr: Nornir, args: argparse.Namespace) -> None:
     for host in nr.inventory.hosts:
@@ -97,9 +88,16 @@ def show(nr: Nornir, args: argparse.Namespace) -> None:
     if args.command == "version":
         show_version(nr)
 
+def run(nr: Nornir, args: argparse.Namespace):
+    for host in nr.inventory.hosts:
+        nr.inventory.hosts[host].platform = "juniper_junos"
+        nr.inventory.hosts[host].connection_options["scrapli"] = ConnectionOptions(extras={'auth_strict_key': False})
+        nr.inventory.hosts[host].connection_options["scrapli_netconf"] = ConnectionOptions(extras={'auth_strict_key': False})
+    result = nr.run(task=send_command, command=args.command)
+    print_result(result)
+
 def main(args: argparse.Namespace) -> None:
     nr = InitNornir(config_file="ez.yml")
-
     cmds = {
         "backup": backup,
         "restore": restore,
@@ -112,8 +110,6 @@ def main(args: argparse.Namespace) -> None:
     except KeyError:
         print("Nothing to do")
     
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='CLI utility for easy render, deploy and backup of configuration')
     subparsers = parser.add_subparsers(title="Commands", dest="cmd")
