@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 
 from nornir import InitNornir
+from nornir.core import Nornir
 from nornir.core.inventory import ConnectionOptions
 from nornir.core.task import Task, Result
 from nornir_utils.plugins.functions import print_result
-from nornir_scrapli.tasks import (
-    get_prompt,
-    send_command,
-    send_configs,
-)
+from nornir_jinja2.plugins.tasks import template_file
 from nornir_napalm.plugins.tasks import napalm_get, napalm_configure
+from nornir_scrapli.tasks import send_command
 import ipdb
 import json
 from rich.console import Console
@@ -24,14 +22,14 @@ def get_value(haystack: list[dict], needle: str) -> dict:
         if needle in d:
             return d[needle][0]['data']
         
-def save_config_to_file(hostname, config, backup_dir="backup/"):
+def save_config_to_file(hostname: str, config: str, backup_dir: str = "backup/") -> None:
     filename = f"{hostname}.cfg"
     if not os.path.exists(backup_dir):
         os.mkdir(backup_dir)
     with open(os.path.join(backup_dir, filename), "w") as f:
         f.write(config)
 
-def run(nr, args):
+def run(nr: Nornir, args: argparse.Namespace):
     for host in nr.inventory.hosts:
         nr.inventory.hosts[host].platform = "juniper_junos"
         nr.inventory.hosts[host].connection_options["scrapli"] = ConnectionOptions(extras={'auth_strict_key': False})
@@ -39,7 +37,7 @@ def run(nr, args):
     result = nr.run(task=send_command, command=args.command)
     print_result(result)
 
-def backup_task(task: Task):
+def backup_task(task: Task) -> None:
     result = task.run(
         name="Backup config",
         task=napalm_get,
@@ -53,30 +51,32 @@ def backup_task(task: Task):
     config = result.result['get_config']['running']
     save_config_to_file(task.host, config)
 
-def restore_task(task: Task):
-    task.run(
+def restore_task(task: Task) -> None:
+    result = task.run(
         name="Restore config",
         task=napalm_configure,
         filename=f"backup/{task.host}.cfg",
         replace=True,  
     )
+    print_result(result)
 
-def backup(nr, args) -> Result:
+def backup(nr: Nornir, args: argparse.Namespace) -> None:
     for host in nr.inventory.hosts:
         nr.inventory.hosts[host].platform = "junos"
     result = nr.run(task=backup_task)
     print_result(result)
 
-def restore(nr, arg) -> Result:
+def restore(nr: Nornir, args: argparse.Namespace) -> None:
     for host in nr.inventory.hosts:
         nr.inventory.hosts[host].platform = "junos"
     result = nr.run(task=restore_task)
     print_result(result)
     
-def config():
-    pass
+def config(nr: Nornir, args: argparse.Namespace) -> None:
+    result = nr.run(task=template_file, template="test.jinja", path="templates", )
+    print_result(result)
 
-def show_version(nr):
+def show_version(nr: Nornir) -> None:
     results = nr.run(task=send_command, command="show version | display json")
     table = Table(title="Command output")
     stuctured = []
@@ -89,7 +89,7 @@ def show_version(nr):
     console = Console()
     console.print(table)
 
-def show(nr, args):
+def show(nr: Nornir, args: argparse.Namespace) -> None:
     for host in nr.inventory.hosts:
         nr.inventory.hosts[host].platform = "juniper_junos"
         nr.inventory.hosts[host].connection_options["scrapli"] = ConnectionOptions(extras={'auth_strict_key': False})
